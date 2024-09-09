@@ -1,0 +1,688 @@
+---
+title: "Predicting Heart Disease"
+output:
+  html_document: default
+  pdf_document: default
+#date: "2024-08-23"
+date: "`r format(Sys.time(), '%B %d, %Y')`"
+author: "Walter Guillioli"
+---
+
+## Introduction 
+Unfortunately, cardiovascular diseases are the world's most common cause of death. The motivation of this project is understand if we can predict the presence or absence of heart disease in people given basic medical information. This is a very personal project for me due to the disease history on my family - including my father.  
+
+In this project we will look at a relatively simple dataset of 270 patients. We will first import and explore the data and then we will prepare it to apply different algorithms that will allow us to understand what can help predict a heart disease. 
+
+This file is just a short summary. To see all the code and all the work behind the scenes see XXX file.
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(echo = TRUE) 
+
+rm(list = ls()) #clean environment
+
+require(tidyverse)
+require(caret)
+require(utils)
+require(randomForest)
+require(hash)
+require(rpart)
+require(rpart.plot)
+require(latexpdf)
+require(kableExtra)
+require(corrplot)
+require(ggthemes)
+#require(Dict)
+
+wd <- "C:\\GitHub\\heart_disease\\"
+
+get_percentiles <- function(column){
+  print(quantile(column, 
+                 prob = c(0, 0.01, 0.05, 0.10, 0.25, 0.50, 
+                          0.75, 0.90, 0.95, 0.99, 1)))
+}
+
+# Custom ggplot theme
+cust_theme <- theme_minimal() +
+  theme(panel.grid.major = element_line(color = "#e1e1e1",  linetype = "dotted"),
+        panel.grid.minor = element_blank(),
+        legend.position  = "bottom",
+        legend.key       = element_blank())
+
+#        legend.key.width = unit(1, "cm"),
+#        axis.title   = element_text(size = 10, color = "#555555"),
+#        axis.text    = element_text(size = 10, color = "#555555"),
+        #axis.title.x = element_text(vjust = 1, margin = margin(10, 0, 0, 0)),
+#        axis.title.y = element_text(vjust = 1),
+#        axis.ticks   = element_line(color = "#e1e1e1", linetype = "dotted", size = .1),
+#        axis.text.x  = element_text(vjust = .3),
+#        plot.margin = unit(c(.5, .75, .5, .5), "cm")
+#        )
+# theme_tufte()
+
+# https://colorbrewer2.org/#type=sequential&scheme=Oranges&n=9
+# color blind friendly palette
+cbPalette <- c("#E69F00", "#999999", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7",
+               "#CC6666", "#9999CC", "#66CC99") #2nd line is extra
+
+
+
+
+```
+
+## Data and Methods
+The dataset was obtained from a study of heart disease that has been open to the public for many years. The study collects various measurements on patient health and cardiovascular statistics. It is a relatively small dataset with data for 270 patients and 13 variables of information for each patient. There is an additional binary variable that indicated the absence or presence of heart disease and that is the variable we will attempt to predict. 
+
+```{r load_data, include = FALSE}
+
+dat_file_path <- paste0(wd, "/data/heart.dat")
+
+readLines(dat_file_path, n=10)
+
+d <- read.table(dat_file_path)
+dim(d) #270 x 14 as expected
+
+column_names <- c("age",
+                  "sex",
+                  "pain",
+                  "blood",
+                  "chol",
+                  "sugar",
+                  "electro",
+                  "maxhr",
+                  "angina",
+                  "oldpeak",
+                  "slope",
+                  "vessels",
+                  "thal",
+                  "disease" #y
+                  )
+
+colnames(d) <- column_names
+
+sum(is.na(d)) #confirm no NAs
+
+glimpse(d)
+
+summary(d)
+```
+
+In total, there are 270 patients. From those, 120 (44%) have heart disease and 150 (56%) do not have heart disease. Note that no missing values are present in the data. 
+
+```{r eda_y, include = FALSE}
+#$ disease <int> 2, 1, 2, 1, 1, 1, 2, 2, 2, 2, 1, 1, 1, 2, 1, 1, 2, 2, 1, 1, ...
+# Absence (1) or presence (2) of heart disease
+
+d %>%
+  group_by(disease) %>%
+  tally() %>%
+  mutate(p = n/sum(n)) #1 56%, 2 44%
+
+d <- d %>%
+  mutate(disease_fct = case_match(d$disease, 1 ~ "N", 2 ~ "Y", .default = NA)) %>%
+  mutate(disease_fct= as.factor(disease_fct)) %>%
+  select(-disease)
+
+```
+
+The 13 available attributes of each patient are summarized in the table below. For more details see the [drivendata.org competition](https://www.drivendata.org/competitions/54/machine-learning-with-a-heart/page/109/).
+
+Attribute                                           | Summary
+:---------------------------------------------------|:---------------------------------------
+Patient's age                                       | Numeric, from 29 to 77 years 
+Patient's sex                                       | Binary, 68% males, 32% females
+Chest pain type                                     | Categorical, 4 possible values 
+Resting blood pressure                              | Numeric, from 94 to 200 
+Serum cholestoral in mg/dl                          | Numeric, from 126 to 564
+Fasting blood sugar                                 | Binary, indicating if blood sugar > 120 mg/dl
+Resting electrocardiographic results                | Categorical, 3 possible values
+Maximum heart rate (beats per minute)               | Numeric, from 71 to 202
+Exercise-induced chest pain (angina)                | Binary, indicating if exercise produces pain
+ST depression induced by exercise relative to rest  | Numeric, from from 0 to 6.2 (most are zero)
+Slope of the peak exercise ST segment               | Categorical, 3 possible values
+Number of major vessels colored by flourosopy       | Categorical, 4 possible values
+Results of thallium stress test                     | Categorical, 3 possible values
+
+Since we have a manageable number of variables for each patient, a detailed univariate exploratory analysis is performed to understand the details of the variable and and more importantly to understand the potential prediction power of the absense or presence of heart disease.
+
+Specifically, for numerical variables I explore the distribution of the data. Where appropriate I cap the observations at a particular percentile in order the make the distribution of the data "more normal". In other cases, a transformation of scale (logarithmic for example) is performed.
+
+For discrete variables, I am mostly concerned about differences in proportion of patients that have or don't have heart disease as it relates to the variable. If the counts of a particular value of these discretes variables is too low I perform groupings in order to help the ML algorithms we will use.
+
+
+```{r eda_x, include = FALSE}
+
+# For numeric, see distribution, cap or convert scale to normalize, see
+# potential of prediction for disease (remove if none), bin/flag if appropriate
+
+# For discrete, see potential of prediction and bin as needed to help ML
+
+#$ age     <dbl> 70, 67, 57, 64, 74, 65, 56, 59, 60, 63, 59, 53, 44, 61, 57, …
+get_percentiles(d$age) #29 to 77
+
+hist(d$age)
+
+boxplot(age ~ disease_fct, d, horizontal = TRUE) #some power of prediction 
+
+d %>%
+  group_by(disease_fct) %>%
+  summarise(median = median(age),
+            p25 = quantile(age, p = 0.25),
+            p75 = quantile(age, p = 0.75)) 
+
+#$ sex     <dbl> 1, 0, 1, 1, 0, 1, 1, 1, 1, 0, 1, 1, 1, 1, 0, 0, 1, 1, 1, 1, …
+# 0: female, 1: male
+d <- d %>%
+  mutate(sex_fct = as.factor(recode(d$sex, '0' = "F", '1' = "M"))) 
+
+d %>%
+  group_by(sex_fct) %>%
+  tally() %>%
+  mutate(p=n/sum(n)) #68%M, 32%F
+
+(t <- table(d$sex_fct, d$disease_fct))
+round(prop.table(t, margin = 2), 2) #higher % of males get Y, so has power
+
+#$ pain    <dbl> 4, 3, 2, 4, 2, 4, 3, 4, 4, 4, 4, 4, 3, 1, 4, 4, 4, 4, 1, 1, 4 …
+(t <- table(d$pain, d$disease_fct))
+round(prop.table(t, margin = 2), 2) #good power 4 vs others, 1-3 low count
+
+d <- d %>%
+  mutate(pain_fct = as.factor(ifelse(pain == 4, "4", "1-3"))) 
+
+#$ sugar   <dbl> 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0,…
+# fasting blood sugar > 120 mg/dl       
+(t <- table(d$sugar, d$disease_fct))
+round(prop.table(t, margin = 2), 2) # no power
+
+d <- d %>%
+  mutate(sugar_fct = as.factor(recode(d$sugar, '0' = "N", '1' = "Y"))) 
+
+#$ electro <dbl> 2, 2, 0, 0, 2, 0, 2, 2, 2, 2, 0, 2, 2, 0, 2, 0, 0, 2, 2, 0, 2 …
+# resting electrocardiographic results  (values 0,1,2) 
+(t <- table(d$electro, d$disease_fct))
+round(prop.table(t, margin = 2), 2) # good power, combine 0-1 due to low n
+
+d <- d %>%
+  mutate(electro_fct = as.factor(ifelse(electro == 2, "2", "0-1")))
+
+#$ angina  <dbl> 0, 0, 0, 1, 1, 0, 1, 1, 0, 0, 0, 1, 0, 0, 0, 0, 1, 1, 1, 1, 1,…
+d <- d %>%
+  mutate(angina_fct = as.factor(recode(d$angina, '0' = "N", '1' = "Y"))) 
+
+(t <- table(d$angina_fct, d$disease_fct))
+round(prop.table(t, margin = 2), 2) # good power
+
+#$ vessels <dbl> 3, 0, 0, 1, 1, 0, 1, 1, 2, 3, 0, 0, 0, 2, 1, 0, 2, 0, 0, 0, 2,…
+(t <- table(d$vessels, d$disease_fct))
+round(prop.table(t, margin = 2), 2) # good power but low n, bin 0-1 & 2-3
+
+d <- d %>%
+  mutate(vessels_fct = as.factor(ifelse(vessels %in% c(0,1), "0-1", "2-3"))) 
+
+#$ slope   <dbl> 2, 2, 1, 2, 1, 1, 2, 2, 2, 2, 2, 1, 1, 2, 1, 2, 2, 3, 2, 1, …
+(t <- table(d$slope, d$disease_fct))
+round(prop.table(t, margin = 2), 2) # great power 1-2, 3 low n so bin with 1
+
+d <- d %>%
+  mutate(slope_fct = as.factor(ifelse(slope %in% c(1,3), "1/3", "2"))) 
+
+#$ thal    <dbl> 3, 7, 7, 7, 3, 7, 6, 7, 7, 7, 7, 7, 3, 3, 3, 3, 7, 7, 3, 7, …
+# thal: 3 = normal; 6 = fixed defect; 7 = reversable defect
+(t <- table(d$thal, d$disease_fct))
+round(prop.table(t, margin = 2), 2) # great power 1-2, 3 low n so bin with 1
+
+d <- d %>%
+  mutate(thal_fct = as.factor(ifelse(thal %in% c(3,6), "normal/fixed", "reversable"))) 
+
+(t <- table(d$thal_fct, d$disease_fct))
+round(prop.table(t, margin = 2), 2) # great power 1-2, 3 low n so bin with 1
+
+#$ maxhr   <dbl> 109, 160, 141, 105, 121, 140, 142, 142, 170, 154, 161, 111, ...
+get_percentiles(d$maxhr) #71 to 202
+
+hist(d$maxhr) #normalize but could cap at left but won't for now
+
+boxplot(maxhr ~ disease_fct, d, horizontal = TRUE) #good power of prediction 
+
+d %>%
+  group_by(disease_fct) %>%
+  summarise(median = median(maxhr),
+            p25 = quantile(maxhr, p = 0.25),
+            p75 = quantile(maxhr, p = 0.75)) 
+
+#$ blood   <dbl> 130, 115, 124, 128, 120, 120, 130, 110, 140, 150, 135, 142, …
+# resting_blood_pressure (type: int): resting blood pressure
+get_percentiles(d$blood) #94 to 200
+
+hist(d$blood) #normalise but could cap at right
+
+boxplot(blood ~ disease_fct, d, horizontal = TRUE) #no power of prediction 
+
+d %>%
+  group_by(disease_fct) %>%
+  summarise(median = median(blood),
+            p25 = quantile(blood, p = 0.25),
+            p75 = quantile(blood, p = 0.75)) #no power, but will leave
+
+# $ chol    <dbl> 322, 564, 261, 263, 269, 177, 256, 239, 293, 407, 234, 226, 235, 234, 303, 149, 3…
+# serum_cholesterol_mg_per_dl (type: int): serum cholestoral in mg/dl
+get_percentiles(d$chol) #126 to 564
+
+hist(d$chol) #normalise but could cap at right, but log is better
+
+boxplot(chol ~ disease_fct, d, horizontal = TRUE) #some power
+
+d$chol_log <- log(d$chol)
+
+boxplot(chol_log ~ disease_fct, d, horizontal = TRUE) #some power
+
+d %>%
+  group_by(disease_fct) %>%
+  summarise(median = median(chol),
+            p25 = quantile(chol, p = 0.25),
+            p75 = quantile(chol, p = 0.75)) #some power
+
+# $ oldpeak <dbl> 2.4, 1.6, 0.3, 0.2, 0.2, 0.4, 0.6, 1.2, 1.2, 4.0, 0.5, 0.0, …
+# ST depression induced by exercise relto rest, measure of abnormality in eco
+get_percentiles(d$oldpeak) #mostly 0s from 0 to 6.2
+
+hist(d$oldpeak) #skew to zero, no way to normalize
+
+boxplot(oldpeak ~ disease_fct, d, horizontal = TRUE) #strong power
+
+d %>%
+  group_by(disease_fct) %>%
+  summarise(median = median(oldpeak),
+            p25 = quantile(oldpeak, p = 0.25),
+            p75 = quantile(oldpeak, p = 0.75)) #has power
+
+# add a few discrete vars by cutting to test it out as well
+d$oldpeak_flag = as.factor(ifelse(d$oldpeak == 0, 0, 1))
+
+(t <- table(d$oldpeak_flag, d$disease_fct))
+round(prop.table(t, margin = 2), 2) # good power 
+
+
+```
+
+As an example let's look at one example of each variable here.
+
+<span style="color: red;">ROJO O NO</span>.
+
+### Maximum heart rate achieved (beats per minute)
+The number of beats per minute per patient ranges from 71 to 202 with a median of 153. The data is mostly normally distributed, as seen on chart below.
+
+```{r maxhr_hist, echo = FALSE}
+
+#ggplot(d, aes(maxhr, colour = disease_fct)) +
+# geom_freqpoly() +
+#  cust_theme
+
+ggplot(d, aes(x = maxhr)) +
+  #geom_density(fill = cbPalette[3]) +
+  geom_histogram(binwidth = 10, fill = cbPalette[3]) +
+  cust_theme +
+  xlab("\nMax. heart rate (beats per minute)") +
+  ylab("Number of patients\n") +
+  scale_x_continuous(breaks = seq(70,210,10)) +
+  scale_y_continuous(limits = c(0, 70), breaks = seq(0,70,10)) 
+  #ggtitle("Distribution of Max. heart rate")
+
+```
+
+More importantly we see a really good potential of prediction of maximum heart rate where patients with heart disease have a median of 141 vs 161 for those that don't have heart disease. It is also important to note that for patients with heart disease the middle half of the observations (percentile 25 to 75) range from 125 to 157, vs 148 to 174 for those without a heart disease. This image shows this distribution.
+
+```{r maxhr_median, include = FALSE}
+d %>%
+  group_by(disease_fct) %>%
+  summarise(median = median(maxhr),
+            p25 = quantile(maxhr, p = 0.25),
+            p75 = quantile(maxhr, p = 0.75))
+
+```
+
+
+
+```{r maxhr_boxplot, echo = FALSE}
+
+ggplot(d, aes(y = maxhr, x = disease_fct)) +
+  geom_boxplot(aes(fill = disease_fct)) +
+  cust_theme +  
+  ylab("\nMax. heart rate (beats per minute)") +
+  xlab("Presence of heart disease\n") +
+  scale_x_discrete(labels=c("No", "Yes" )) +
+  scale_y_continuous(limits = c(0, 225), breaks = seq(0,225,25)) +
+  theme(legend.position="none") +
+  scale_fill_manual(breaks = d$disease_fct,
+                    values = c(cbPalette[5], cbPalette[11]))
+
+```
+
+### Results of thallium stress test 
+Test that measures the blood flow to the heart, with possible values normal, fixed_defect, reversible_defect.
+
+At first, when looking at the data we observe that the counts for 6 (fixed) are low. We need to address this in order to help the ML algorithms we will use later. To do so, since the proportion of presence of sickness is similar with 3 (normal) we bin them together.
+
+```{r thal_raw, echo = FALSE}
+
+#raw data
+t <- table(d$disease_fct, d$thal)
+p <- round(prop.table(t,2),2)
+#print(t)
+#print(p)
+rownames(t) <- c("No", "Yes")
+col_names <- c("3 (Normal)", "6 (Fixed)", "7 (Reversable)")
+kable(t,
+      row.names = TRUE,
+      col.names = col_names,
+      align = "l",
+      booktabs = T,
+      linesep = ""
+      )
+```
+
+After binning them together, we compute the proportion of patients with and without disease as it relates to the results of the thalium test. As we can see the proportions are basically inverted indicating that 80% of patients that have a heart disease have reversable results. This is good news as far as power of prediction goes, as we will see later. 
+
+```{r thal_prepped, echo = FALSE}
+
+#prepped data
+t <- table(d$disease_fct, d$thal_fct)
+p <- round(prop.table(t,2),1)
+#print(p)
+rownames(p) <- c("No", "Yes")
+col_names <- c("Normal or Fixed", "Reversable")
+kable(p,
+      row.names = TRUE,
+      col.names = col_names,
+      align = 'l',
+      booktabs = T,
+      linesep = ""
+      ) #%>% 
+  #kable_styling(latex_options = c("striped", "hold_position"))
+
+```
+
+### Relationship within the attributes (Multicolinearity)
+Another interesting thing is to see what variables are related to each other. This is important to understand the predictors and might need to be addressed. The chart below shows us the correlation values of the numerical variables of the patients. We are interested in big squares which means bigger correlations. 
+
+For example, looking at the patient's age we see a relatively strong correlation with the number of vessels colored by flourosopy and the patient's blood pressure. In layman terms for the latter we could say that older patients tend to have a higher blood pressure.
+
+In addition, we are interested in negative correlations (the red squares). For example we can see that older patients tend to have lower maximum heart rate - which makes sense.
+
+Slope of the peak exercise ST segment and ST depression induced by exercise relative to rest have a very high correlation of 0.6. The variables seem to measure similar information so one could be removed but will leave it for now.
+
+Chest pain and exercise induced pain (angina) are highly correlated. And as we will see they are very strong predictors of heart disease.
+
+```{r colinearity, echo = FALSE}
+
+num_vars <- sapply(d, is.numeric)
+
+r <- round(cor(d[ ,num_vars]),2)
+
+corrplot::corrplot(r, 
+                   method = "square", 
+                   type = "lower", 
+                   order = "alphabet",
+                   tl.srt = 45, 
+                   tl.col = "black"
+                   )
+```
+
+## Results 
+Fortunately, after a careful univariate analysis one can see that there are several variables that have a good potential of prediction of heart disease. Some to highligh are: 
+
+* **Chest pain type**: patients with higher pain type are more likely to have heart disease. For those with heart disease, 76% have the highest type of pain (4), while only 25% of patients without disease report that level of pain.
+
+* **Results of thallium stress test**: similar the previous attribute we see that for patients with disease, 66% report reservable type of pain while only 17% of those without disease report that result.
+
+* **Maximum heart rate (beats per minute)**: see previous section for more details.
+
+* **Patient's sex**: interesting to see that 55% of women have heart disease vs 83% for men. 
+
+* **Exercise-induced chest pain (angina)**: 55% of patients with heart disease report angina while only 15% of those without heart disease do. 
+
+Alternatively, there are a couple of unexpected results worth mentioning 
+
+* **Serum cholestoral in mg/dl**: there wasn't much difference in cholestoral values for patients with our without disease and this contridicts what I had expected.
+
+* **Fasting blood sugar**: same as cholestoral there are not major differences across both groups of patients. 
+
+Now, let's compare our manual work with the automated work of ML algorithms and see what results are obtained.
+
+```{r test_train_split, include = FALSE}
+
+m <- d # modeling dataset
+
+# remove vars that were modified for modeling
+m <- m %>%
+  select(-sex, -pain, -sugar, -electro, -angina, -vessels, -slope, -chol,
+         -thal)
+
+# split into training and testing
+set.seed(97702)
+train_index <- sample(1:nrow(m), 0.8 * nrow(m))
+m_train <- m[train_index, ]
+m_test <- m[-train_index, ]
+
+```
+
+```{r ml_rf_caret, include = FALSE}
+
+# fit a random forest model 
+rf_fit <- train(disease_fct ~ . - oldpeak_flag, 
+                data = m_train, 
+                method = "rf",
+                importance = TRUE)
+
+rf_fit
+
+# predict the outcome on a test set and assess accuracy of model
+m_rf_pred <- predict(rf_fit, m_test)
+
+cm_rf <- confusionMatrix(m_rf_pred, m_test$disease_fct) #85% acc
+cm_rf
+cm_rf$overall[1]
+
+```
+
+
+```{r ml_glm, include=FALSE}
+
+# Forward subset selection
+reg0 <- glm(disease_fct ~ 1, data = m_train, family = binomial) #base
+reg1 <- glm(disease_fct ~ ., data = m_train, family = binomial) #full
+summary(reg1)
+
+best <- step(reg0, scope = formula(reg1), 
+             direction = "forward", k = 2) #k=2 is AIC, best
+summary(best)
+best$anova
+
+# predict the outcome on a test set and assess accuracy of model
+m_glm_pred <- predict(best, m_test, type = "response")
+m_glm_pred <- as.factor(ifelse(m_glm_pred > 0.5, "Y", "N"))
+
+confusionMatrix(m_glm_pred, m_test$disease_fct) #83% acc
+
+cm_glm <- confusionMatrix(m_glm_pred, m_test$disease_fct) #83% acc
+cm_glm
+cm_glm$overall[1]
+
+
+
+```
+
+```{r ml_rf_grid_caret, include=FALSE}
+
+# A fancier rf model with gride search to see if accuracy improves
+
+# 10 folds and keep 3 folds for training. search method is grid.
+control <- trainControl(#method='repeatedcv', 
+                        method = 'cv',
+                        number=10, 
+                        #repeats=3, 
+                        search='grid')
+
+# Create tunegrid with 10 values for mtry to tunning model
+tunegrid <- expand.grid(.mtry = (1:10)) 
+
+rf_gridsearch <- train(disease_fct ~ ., 
+                       data = m,
+                       method = 'rf',
+                       metric = 'Accuracy',
+                       tuneGrid = tunegrid,
+                       trControl = control,
+                       importance = TRUE)
+
+print(rf_gridsearch) #81% acc
+
+#cm_glm <- confusionMatrix(m_glm_pred, m_test$disease_fct) #83% acc
+#cm_glm
+#cm_glm$overall[1]
+rf_gridsearch$results[2][[1]][1]
+
+
+```
+
+### Model results
+
+In total we performed three different ML models in order to predict the presence of heart disease. 
+
+1. Random Forest using train/test validation approach to test the model on new data. I especially like this technique because it gives us a clear sense of what attributes are good predictors.
+
+2. Logistic regression using train/test validation approach like in the previews model.
+
+3. Random Forest using cross-validation. The idea here is to go beyond a simple random forest and let the algorithm explore different tuning parameters and in a way help us pick the best model. Interestingly it didn't change much.
+
+The results are summarized in the table below. We see all three are close to 80% in accuracy so the immediate question is, is that good or bad? Certainly the results could be improved potentially if we tried different algorithms but that is not the goal here. 
+
+Considering that our dataset had 120 (44%) patients with heart disease and 150 (56%) without we see a very balanced dataset that was almost like flipping a coin. And if we would have said that all patients don't have heart disease we would be correct 56%. So these algorithms getting us to around 80% accuracy is a huge improvement.
+
+```{r accuracy, echo=FALSE}
+
+df_accuracy <- c(cm_rf$overall[1], 
+                 cm_glm$overall[1],
+                 rf_gridsearch$results[2][[1]][1])
+
+df_accuracy <- round(df_accuracy,2)
+
+names(df_accuracy) <- c("Random Forest (train/test)",
+                        "Logistic Regression (forward selection)",
+                        "Random Forest (cross validation)")
+
+col_names = c("Modeling technique", "Accuracy")
+
+kable(df_accuracy,
+      row.names = TRUE,
+      align = 'l',
+      col.names = col_names,
+      booktabs = T,
+      linesep = ""
+      ) #%>% 
+
+
+
+```
+
+### Important attributes predicting heart disease
+
+One of the advantages of the Random Forest algorithm is that is ranks what variables are the most important in building all the trees. This is summarized here:
+
+
+```{r print_rf_features, echo = FALSE}
+
+# plot important features
+importance <- varImp(rf_fit, scale = FALSE)
+#plot(importance)
+
+importance_df <- importance$importance
+importance_df$feature <- c ("Patient's age",
+                            "Resting blood pressure",
+                            "Maximum heart rate (beats per minute)",
+                            "ST depression induced by exercise relative to rest",
+                            "Patient's sex",
+                            "Chest pain type",
+                            "Fasting blood sugar",
+                            "Resting electrocardiographic results",
+                            "Angina (Exercise-induced chest pain)",
+                            "Number of major vessels colored by flourosopy",
+                            "Slope of the peak exercise ST segment",
+                            "Results of thallium stress test",
+                            "Serum cholestoral in mg/dl")
+
+ggplot(importance_df, aes(reorder(feature, +N), N)) + # , #fill=feature)) +
+  cust_theme +
+  geom_col(fill = cbPalette[3]) +
+  coord_flip() +
+  ylab("\nMean decrease accuracy") +
+  xlab("Patient attribute\n") 
+  #scale_fill_manual(values= "red") 
+  #scale_fill_brewer(palette="Spectral")
+  
+
+```
+
+
+### Another approach to explain the model
+
+The previous results are great to get a sense of the importance of the variables. But the next question is how. For that we used a very simple classification tree that allows us to see some of the rules behind the trees to determine the presence of heart disease.
+
+
+```{r rpart, echo = FALSE}
+
+# friendlier column names for better display on tree
+
+friendly_column_names <- c("age", "blood_pressure", "maxhr", "oldpeak",
+                           "disease", "sex", "pain", "blood_sugar",
+                           "electro", "angina", "num_vessels", "slope",
+                           "thal", "cholesterol_log", "oldpeak_flag")
+
+colnames(m) <- friendly_column_names
+
+set.seed(97702)
+disease_rpart_model <- rpart(disease ~ . - oldpeak_flag, 
+                             data = m, method = "class", 
+                             control = rpart.control(cp = 0))
+
+rpart.plot(disease_rpart_model,
+           type = 1,
+           #box.palette = c(cbPalette[1], cbPalette[2]),
+           box.palette = "0",
+           clip.right.labs = FALSE)
+
+```
+
+For example, let's consider the two scenarios where most of the patients are classified.
+
+1. **Patients with heart disease**. If we follow the brach all the way to the right we see first that patients with a reversable Results of thallium stress test will have a 90% of presence of disease. 26% of the patients fit this criteria. 
+
+2. **Patients without heart disease**. If weh follow the branch all the way to the left we see that if patients had a Slope of the peak exercise ST segment under 2 and a normal or fixed result on the Results of thallium stress test they only have a 9% probability of heart disease. 36% of patients fit these criteria.
+
+## Conclusions
+1. Based on this simple dataset it seems that understand what can cause the presence of heart disease is not that complex and there are simple measures we can take
+
+2. Algorithms only provide partial solutions and we should not take them as the ultimate true. For example, we know that many other variables are good potential predictors but the tree did not show them for example.
+
+3. More data would be nice to explore different or complimentary results. For example, it is a bit strange that Resting blood pressure and Serum cholestoral in mg/dl did not appear as strong predictors. 
+
+## References
+
+DrivenData. (n.d.). Warm up: Machine learning with a heart. http://www.drivendata.org/competitions/54/machine-learning-with-a-heart 
+
+Statlog (heart). UCI Machine Learning Repository. (n.d.). https://doi.org/10.24432/C57303 
+
+Cardiovascular diseases - global facts and figures. World Heart Federation. (2023, May 26). https://world-heart-federation.org/resource/cardiovascular-diseases-cvds-global-facts-figures/ 
+
+Barter, R. (2020, April 14). Tidymodels: Tidy Machine Learning in R. Rebecca Barter. https://rebeccabarter.com/blog/2020-03-25_machine_learning 
+
+## TO DO
+1. Clean code blocks
+2. Gramarly todo
+3. Picky con graphs
+
+
+
+
+
+
+
