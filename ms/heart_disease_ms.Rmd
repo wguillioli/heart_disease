@@ -1,23 +1,26 @@
 ---
 title: "Predicting Heart Disease"
 output:
-  html_document: default
   pdf_document: default
+  html_document: default
 #date: "2024-08-23"
-date: "`r format(Sys.time(), '%B %d, %Y')`"
 author: "Author: Walter Guillioli"
+date: "`r format(Sys.time(), '%B %d, %Y')`"
 ---
 
 ## Introduction 
-Unfortunately, cardiovascular diseases are the world's most common cause of death. The motivation of this project is understand if we can predict the presence or absence of heart disease in people given basic medical information. This is a very personal project for me due to the disease history on my family - including my father.  
+Unfortunately, cardiovascular diseases are the world's most common cause of death. The motivation of this project is to understand if we can predict the presence or absence of heart disease in people given basic medical information. This is a very personal project for me due to the disease history in my family - including my father.  
 
-In this project we will look at a relatively simple dataset of 270 patients. We will first import and explore the data and then we will prepare it to apply different algorithms that will allow us to understand what can help predict a heart disease. 
+In this project, we will look at a relatively simple dataset of 270 patients. We will first import and explore the data and then we will prepare it to apply different algorithms that will allow us to understand what can help predict a heart disease. 
 
-This file is just a short summary. To see all the code and all the work behind the scenes see this [file](https://github.com/wguillioli/heart_disease/blob/main/scripts/heart_disease_ms.Rmd).
+This file is just a summary. To see all the code and all the work behind the scenes see this [file](https://github.com/wguillioli/heart_disease/blob/main/scripts/heart_disease_ms.Rmd). 
+
 
 ```{r setup, include = FALSE}
 
-knitr::opts_chunk$set(echo = TRUE) 
+knitr::opts_chunk$set(echo = TRUE, 
+                      out.width = '80%', 
+                      fig.align = "center") 
 
 rm(list = ls()) #clean environment
 
@@ -32,6 +35,7 @@ require(latexpdf)
 require(kableExtra)
 require(corrplot)
 require(ggthemes)
+require(tinytex)
 
 wd <- "C:\\GitHub\\heart_disease\\"
 
@@ -54,7 +58,7 @@ cbPalette <- c("#E69F00", "#999999", "#56B4E9", "#009E73", "#F0E442", "#0072B2",
 ```
 
 ## Data and Methods
-The dataset was obtained from a study of heart disease that has been open to the public for many years. The study collects various measurements on patient health and cardiovascular statistics. It is a relatively small dataset with data for 270 patients and 13 variables of information for each patient. There is an additional binary variable that indicated the absence or presence of heart disease and that is the variable we will attempt to predict. 
+The dataset was obtained from a study of heart disease that has been open to the public for many years. The study collects various measurements of patient health and cardiovascular statistics. It is a relatively small dataset with data for 270 patients and 13 variables of information for each patient. There is an additional binary variable that indicates the absence or presence of heart disease and that is the variable we will attempt to predict. 
 
 ```{r load_data, include = FALSE}
 
@@ -91,7 +95,7 @@ summary(d)
 
 ```
 
-In total, there are 270 patients. From those, 120 (44%) have heart disease and 150 (56%) do not have heart disease. Note that no missing values are present in the data. 
+In total, there are 270 patients. Of those, 120 (44%) have heart disease and 150 (56%) do not have heart disease. Note that no missing values are present in the data. 
 
 ```{r eda_y, include = FALSE}
 
@@ -115,24 +119,24 @@ The 13 available attributes of each patient are summarized in the table below. F
 Attribute                                           | Summary
 :---------------------------------------------------|:---------------------------------------
 Patient's age                                       | Numeric, from 29 to 77 years 
-Patient's sex                                       | Binary, 68% males, 32% females
+Patient's gender                                    | Binary, 68% males, 32% females
 Chest pain type                                     | Categorical, 4 possible values 
 Resting blood pressure                              | Numeric, from 94 to 200 
-Serum cholestoral in mg/dl                          | Numeric, from 126 to 564
+Serum cholestorol in mg/dl                          | Numeric, from 126 to 564
 Fasting blood sugar                                 | Binary, indicating if blood sugar > 120 mg/dl
 Resting electrocardiographic results                | Categorical, 3 possible values
 Maximum heart rate (beats per minute)               | Numeric, from 71 to 202
 Exercise-induced chest pain (angina)                | Binary, indicating if exercise produces pain
-ST depression induced by exercise relative to rest  | Numeric, from from 0 to 6.2 (most are zero)
+ST depression induced by exercise relative to rest  | Numeric, from 0 to 6.2 (most are zero)
 Slope of the peak exercise ST segment               | Categorical, 3 possible values
-Number of major vessels colored by flourosopy       | Categorical, 4 possible values
+Number of major vessels colored by flouroroscopy    | Categorical, 4 possible values
 Results of thallium stress test                     | Categorical, 3 possible values
 
-Since we have a manageable number of variables for each patient, a detailed univariate exploratory analysis is performed to understand the details of the variable and and more importantly to understand the potential prediction power of the absense or presence of heart disease.
+Since we have a manageable number of variables for each patient, a detailed univariate exploratory analysis is performed to understand the details of the variable and more importantly to understand the potential prediction power of the absence or presence of heart disease.
 
 Specifically, for numerical variables I explore the distribution of the data. Where appropriate I cap the observations at a particular percentile in order the make the distribution of the data "more normal". In other cases, a transformation of scale (logarithmic for example) is performed.
 
-For discrete variables, I am mostly concerned about differences in proportion of patients that have or don't have heart disease as it relates to the variable. If the counts of a particular value of these discretes variables is too low I perform groupings in order to help the ML algorithms we will use.
+For discrete variables, I am mostly concerned about differences in the proportion of patients that have or don't have heart disease as it relates to the variable. If the counts of a particular value of these discrete variables are too low I perform groupings to help the ML algorithms we will use.
 
 
 ```{r eda_x, include = FALSE}
@@ -293,7 +297,7 @@ round(prop.table(t, margin = 2), 2) # good power
 As an example let's look at one example of each variable here.
 
 ### Maximum heart rate achieved (beats per minute)
-The number of beats per minute per patient ranges from 71 to 202 with a median of 153. The data is mostly normally distributed, as seen on chart below.
+The number of beats per minute per patient ranges from 71 to 202 with a median of 153. The data is mostly normally distributed, as seen in the chart below.
 
 ```{r maxhr_hist, echo = FALSE}
 
@@ -307,7 +311,7 @@ ggplot(d, aes(x = maxhr)) +
 
 ```
 
-More importantly we see a really good potential of prediction of maximum heart rate where patients with heart disease have a median of 141 vs 161 for those that don't have heart disease. It is also important to note that for patients with heart disease the middle half of the observations (percentile 25 to 75) range from 125 to 157, vs 148 to 174 for those without a heart disease. This image shows this distribution.
+More importantly, we see a really good potential for prediction of maximum heart rate where patients with heart disease have a median of 141 vs 161 for those that don't have heart disease. It is also important to note that for patients with heart disease the middle half of the observations (percentile 25 to 75) range from 125 to 157, vs 148 to 174 for those without a heart disease. This image shows this distribution.
 
 ```{r maxhr_median, include = FALSE}
 
@@ -326,8 +330,8 @@ d %>%
 ggplot(d, aes(y = maxhr, x = disease_fct)) +
   geom_boxplot(aes(fill = disease_fct)) +
   cust_theme +  
-  ylab("\nMax. heart rate (beats per minute)") +
-  xlab("Presence of heart disease\n") +
+  ylab("Max. heart rate (beats per minute)\n") +
+  xlab("\nPresence of heart disease") +
   scale_x_discrete(labels=c("No", "Yes" )) +
   scale_y_continuous(limits = c(0, 225), breaks = seq(0,225,25)) +
   theme(legend.position="none") +
@@ -339,7 +343,8 @@ ggplot(d, aes(y = maxhr, x = disease_fct)) +
 ### Results of thallium stress test 
 Test that measures the blood flow to the heart, with possible values normal, fixed_defect, reversible_defect.
 
-At first, when looking at the data we observe that the counts for 6 (fixed) are low. We need to address this in order to help the ML algorithms we will use later. To do so, since the proportion of presence of sickness is similar with 3 (normal) we bin them together.
+At first, when looking at the data we observe that the counts for 6 (fixed) are low. We need to address this to help the ML algorithms we will use later. To do so, since the proportion of the presence of disease is similar to 3 (normal) we bin them together.
+
 
 ```{r thal_raw, echo = FALSE}
 
@@ -357,7 +362,7 @@ kable(t,
       )
 ```
 
-After binning them together, we compute the proportion of patients with and without disease as it relates to the results of the thalium test. As we can see the proportions are basically inverted indicating that 80% of patients that have a heart disease have reversable results. This is good news as far as power of prediction goes, as we will see later. 
+After binning them together, we compute the proportion of patients with and without disease as it relates to the results of the thallium test. As we can see the proportions are inverted indicating that 80% of patients that have a heart disease have reversable results. This is good news as far as the power of prediction goes, as we will see later. 
 
 ```{r thal_prepped, echo = FALSE}
 
@@ -376,16 +381,17 @@ kable(p,
 
 ```
 
-### Relationship within the attributes (Multicolinearity)
+### Relationship within the attributes (Multicollinearity)
 Another interesting thing is to see what variables are related to each other. This is important to understand the predictors and might need to be addressed. The chart below shows us the correlation values of the numerical variables of the patients. We are interested in big squares which means bigger correlations. 
 
-For example, looking at the patient's age we see a relatively strong correlation with the number of vessels colored by flourosopy and the patient's blood pressure. In layman terms for the latter we could say that older patients tend to have a higher blood pressure.
+For example, looking at the patient's age we see a relatively strong correlation between the number of vessels colored by fluoroscopy and the patient's blood pressure. In layman's terms for the latter, we could say that older patients tend to have higher blood pressure.
 
-In addition, we are interested in negative correlations (the red squares). For example we can see that older patients tend to have lower maximum heart rate - which makes sense.
+In addition, we are interested in negative correlations (the red squares). For example, we can see that older patients tend to have lower maximum heart rates - which makes sense.
 
-Slope of the peak exercise ST segment and ST depression induced by exercise relative to rest have a very high correlation of 0.6. The variables seem to measure similar information so one could be removed but will leave it for now.
+The slope of the peak exercise ST segment and ST depression induced by exercise relative to rest have a very high correlation of 0.6. The variables seem to measure similar information so one could be removed but will leave it for now.
 
-Chest pain and exercise induced pain (angina) are highly correlated. And as we will see they are very strong predictors of heart disease.
+Chest pain and exercise-induced pain (angina) are highly correlated. And as we will see they are very strong predictors of heart disease.
+
 
 ```{r colinearity, echo = FALSE}
 
@@ -404,25 +410,26 @@ corrplot::corrplot(r,
 ```
 
 ## Results 
-Fortunately, after a careful univariate analysis one can see that there are several variables that have a good potential of prediction of heart disease. Some to highligh are: 
+Fortunately, after a careful univariate analysis one can see that several variables have a good potential of prediction of heart disease. Some to highlight are: 
 
-* **Chest pain type**: patients with higher pain type are more likely to have heart disease. For those with heart disease, 76% have the highest type of pain (4), while only 25% of patients without disease report that level of pain.
+* **Chest pain type**: patients with higher pain types are more likely to have heart disease. For those with heart disease, 76% have the highest type of pain (4), while only 25% of patients without disease report that level of pain.
 
-* **Results of thallium stress test**: similar the previous attribute we see that for patients with disease, 66% report reservable type of pain while only 17% of those without disease report that result.
+* **Results of thallium stress test**: similar to the previous attribute we see that for patients with disease, 66% report reservable type of pain while only 17% of those without disease report that result.
 
 * **Maximum heart rate (beats per minute)**: see previous section for more details.
 
-* **Patient's sex**: interesting to see that 55% of women have heart disease vs 83% for men. 
+* **Patient's sex**: interesting to see that 55% of women have heart disease vs 83% of men. 
 
 * **Exercise-induced chest pain (angina)**: 55% of patients with heart disease report angina while only 15% of those without heart disease do. 
 
 Alternatively, there are a couple of unexpected results worth mentioning 
 
-* **Serum cholestoral in mg/dl**: there wasn't much difference in cholestoral values for patients with our without disease and this contridicts what I had expected.
+* **Serum cholesterol in mg/dl**: there wasn't much difference in cholesterol values for patients with or without disease and this contradicts what I had expected.
 
-* **Fasting blood sugar**: same as cholestoral there are not major differences across both groups of patients. 
+* **Fasting blood sugar**: same as cholesterol there are no major differences across both groups of patients. 
 
 Now, let's compare our manual work with the automated work of ML algorithms and see what results are obtained.
+
 
 ```{r test_train_split, include = FALSE}
 
@@ -514,17 +521,18 @@ rf_gridsearch$results[2][[1]][1]
 
 ### Model results
 
-In total we performed three different ML models in order to predict the presence of heart disease. 
+In total, we performed three different ML models to predict the presence of heart disease. 
 
-1. Random Forest using train/test validation approach to test the model on new data. I especially like this technique because it gives us a clear sense of what attributes are good predictors.
+1. Random Forest using the train/test validation approach to test the model on new data. I especially like this technique because it gives us a clear sense of what attributes are good predictors.
 
 2. Logistic regression using train/test validation approach like in the previews model.
 
 3. Random Forest using cross-validation. The idea here is to go beyond a simple random forest and let the algorithm explore different tuning parameters and in a way help us pick the best model. Interestingly it didn't change much.
 
-The results are summarized in the table below. We see all three are close to 80% in accuracy so the immediate question is, is that good or bad? Certainly the results could be improved potentially if we tried different algorithms but that is not the goal here. 
+The results are summarized in the table below. We see all three are close to 80% in accuracy so the immediate question is, is that good or bad? Certainly, the results could be improved potentially if we tried different algorithms but that is not the goal here. 
 
-Considering that our dataset had 120 (44%) patients with heart disease and 150 (56%) without we see a very balanced dataset that was almost like flipping a coin. And if we would have said that all patients don't have heart disease we would be correct 56%. So these algorithms getting us to around 80% accuracy is a huge improvement.
+Considering that our dataset had 120 (44%) patients with heart disease and 150 (56%) without we see a very balanced dataset that was almost like flipping a coin. If we had said that all patients don't have heart disease we would be correct 56%. So these algorithms getting us to around 80% accuracy is a huge improvement. 
+
 
 ```{r accuracy, echo=FALSE}
 
@@ -552,7 +560,7 @@ kable(df_accuracy,
 
 ### Important attributes predicting heart disease
 
-One of the advantages of the Random Forest algorithm is that is ranks what variables are the most important in building all the trees. This is summarized here:
+One of the advantages of the Random Forest algorithm is that it ranks what variables are the most important in building all the trees. This is summarized here:
 
 
 ```{r print_rf_features, echo = FALSE}
@@ -570,10 +578,10 @@ importance_df$feature <- c ("Patient's age",
                             "Fasting blood sugar",
                             "Resting electrocardiographic results",
                             "Angina (Exercise-induced chest pain)",
-                            "Number of major vessels colored by flourosopy",
+                            "Number of major vessels colored by fluoroscopy",
                             "Slope of the peak exercise ST segment",
                             "Results of thallium stress test",
-                            "Serum cholestoral in mg/dl")
+                            "Serum cholestorol in mg/dl")
 
 ggplot(importance_df, aes(reorder(feature, +N), N)) + 
   cust_theme +
@@ -587,7 +595,7 @@ ggplot(importance_df, aes(reorder(feature, +N), N)) +
 
 ### Another approach to explain the model
 
-The previous results are great to get a sense of the importance of the variables. But the next question is how. For that we used a very simple classification tree that allows us to see some of the rules behind the trees to determine the presence of heart disease.
+The previous results are great to get a sense of the importance of the variables. But the next question is how. For that, we used a very simple classification tree that allows us to see some of the rules behind the trees to determine the presence of heart disease.
 
 
 ```{r rpart, echo = FALSE}
@@ -616,34 +624,25 @@ rpart.plot(disease_rpart_model,
 
 For example, let's consider the two scenarios where most of the patients are classified.
 
-1. **Patients with heart disease**. If we follow the brach all the way to the right we see first that patients with a reversable Results of thallium stress test will have a 90% of presence of disease. 26% of the patients fit this criteria. 
+1. **Patients with heart disease**. If we follow the branch to the right we see first that patients with a reversible result of the thallium stress test will have a 90% of presence of disease. 26% of the patients fit this criteria. 
 
-2. **Patients without heart disease**. If weh follow the branch all the way to the left we see that if patients had a Slope of the peak exercise ST segment under 2 and a normal or fixed result on the Results of thallium stress test they only have a 9% probability of heart disease. 36% of patients fit these criteria.
+2. **Patients without heart disease**. If we follow the branch to the left we see that if patients had a Slope of the peak exercise ST segment under 2 and a normal or fixed result on the Results of the thallium stress test they only have a 9% probability of heart disease. 36% of patients fit these criteria.
+
 
 ## Conclusions
-1. Based on this simple dataset it seems that understand what can cause the presence of heart disease is not that complex and there are simple measures we can take
+1. Based on this simple dataset it seems that understanding what can cause the presence of heart disease is not that complex and there are simple measures we can take
 
-2. Algorithms only provide partial solutions and we should not take them as the ultimate true. For example, we know that many other variables are good potential predictors but the tree did not show them for example.
+2. Algorithms only provide partial solutions and we should not take them as the ultimate truth. For example, we know that many other variables are good potential predictors but the tree did not show them for example.
 
-3. More data would be nice to explore different or complimentary results. For example, it is a bit strange that Resting blood pressure and Serum cholestoral in mg/dl did not appear as strong predictors. 
+3. More data would be nice to explore different or complementary results. For example, it is a bit strange that Resting blood pressure and Serum cholesterol in mg/dl did not appear as strong predictors. 
+
 
 ## References
 
-DrivenData. (n.d.). Warm up: Machine learning with a heart. http://www.drivendata.org/competitions/54/machine-learning-with-a-heart 
+DrivenData. (n.d.). Warm-up: Machine learning with a heart. http://www.drivendata.org/competitions/54/machine-learning-with-a-heart 
 
 Statlog (heart). UCI Machine Learning Repository. (n.d.). https://doi.org/10.24432/C57303 
 
 Cardiovascular diseases - global facts and figures. World Heart Federation. (2023, May 26). https://world-heart-federation.org/resource/cardiovascular-diseases-cvds-global-facts-figures/ 
 
 Barter, R. (2020, April 14). Tidymodels: Tidy Machine Learning in R. Rebecca Barter. https://rebeccabarter.com/blog/2020-03-25_machine_learning 
-
-## TO DO
-- Gramarly todo
-- Picky con graphs
-
-
-
-
-
-
-
