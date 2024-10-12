@@ -1,11 +1,33 @@
 ---
-title: "Predicting Heart Disease"
-output:
-  pdf_document: default
-  html_document: default
-#date: "2024-08-23"
-author: "Author: Walter Guillioli"
+title: "Predicting Heart Disease^[The data and scripts used are posted here: https://github.com/wguillioli/heart_disease/.]"
+author: "Walter Guillioli"
 date: "`r format(Sys.time(), '%B %d, %Y')`"
+output:
+  pdf_document:
+    fig_caption: yes
+  html_document:
+    df_print: paged
+header-includes:
+- \usepackage{caption}
+- \usepackage{booktabs}
+- \usepackage{makecell}
+- \usepackage{longtable}
+- \usepackage{array}
+- \usepackage{multirow}
+- \usepackage{wrapfig}
+- \usepackage{float}
+- \usepackage{colortbl}
+- \usepackage{pdflscape}
+- \usepackage{tabu}
+- \usepackage{threeparttable}
+- \usepackage{threeparttablex}
+- \usepackage[normalem]{ulem}
+- \usepackage{makecell}
+- \usepackage{xcolor}
+- \floatplacement{figure}{H}
+#output:
+#  pdf_document: default
+#  html_document: default
 ---
 
 ## Introduction 
@@ -114,7 +136,10 @@ d <- d %>%
 
 ```
 
-The 13 available attributes of each patient are summarized in the table below. For more details see the competition page on [drivendata.org](https://www.drivendata.org/competitions/54/machine-learning-with-a-heart/page/109/).
+The 13 available attributes of each patient are summarized in table 1. For more details see the competition page on [drivendata.org](https://www.drivendata.org/competitions/54/machine-learning-with-a-heart/page/109/).
+
+Table 1
+Summary of patient's attributes
 
 Attribute                                           | Summary
 :---------------------------------------------------|:---------------------------------------
@@ -297,7 +322,10 @@ round(prop.table(t, margin = 2), 2) # good power
 As an example let's look at one example of each variable here.
 
 ### Maximum heart rate achieved (beats per minute)
-The number of beats per minute per patient ranges from 71 to 202 with a median of 153. The data is mostly normally distributed, as seen in the chart below.
+The number of beats per minute per patient ranges from 71 to 202 with a median of 153. The data is mostly normally distributed, as seen in figure 1.
+
+Figure 1
+Distribution of Patient's maximum heart rate achieved (beats per minute)
 
 ```{r maxhr_hist, echo = FALSE}
 
@@ -311,7 +339,8 @@ ggplot(d, aes(x = maxhr)) +
 
 ```
 
-More importantly, we see a really good potential for prediction of maximum heart rate where patients with heart disease have a median of 141 vs 161 for those that don't have heart disease. It is also important to note that for patients with heart disease the middle half of the observations (percentile 25 to 75) range from 125 to 157, vs 148 to 174 for those without a heart disease. This image shows this distribution.
+More importantly, we see a really good potential for prediction of maximum heart rate where patients with heart disease have a median of 141 vs 161 for those that don't have heart disease. It is also important to note that for patients with heart disease the middle half of the observations (percentile 25 to 75) range from 125 to 157, vs 148 to 174 for those without a heart disease. Figure 2 shows this distribution.
+
 
 ```{r maxhr_median, include = FALSE}
 
@@ -323,6 +352,8 @@ d %>%
 
 ```
 
+Figure 2
+Patient's maximum heart rate achieved (beats per minute) by presence of heart disease
 
 
 ```{r maxhr_boxplot, echo = FALSE}
@@ -343,8 +374,10 @@ ggplot(d, aes(y = maxhr, x = disease_fct)) +
 ### Results of thallium stress test 
 Test that measures the blood flow to the heart, with possible values normal, fixed_defect, reversible_defect.
 
-At first, when looking at the data we observe that the counts for 6 (fixed) are low. We need to address this to help the ML algorithms we will use later. To do so, since the proportion of the presence of disease is similar to 3 (normal) we bin them together.
+At first, when looking at the data we observe that the counts for 6 (fixed) are low. We need to address this to help the ML algorithms we will use later. To do so, since the proportion of the presence of disease is similar to 3 (normal) we bin them together. See Table 2.
 
+Table 2
+Number of patients by results of thallium stress test
 
 ```{r thal_raw, echo = FALSE}
 
@@ -362,7 +395,10 @@ kable(t,
       )
 ```
 
-After binning them together, we compute the proportion of patients with and without disease as it relates to the results of the thallium test. As we can see the proportions are inverted indicating that 80% of patients that have a heart disease have reversable results. This is good news as far as the power of prediction goes, as we will see later. 
+After binning them together, we compute the proportion of patients with and without disease as it relates to the results of the thallium test. As we can see the proportions are inverted indicating that 80% of patients that have a heart disease have reversable results (Table 3). This is good news as far as the power of prediction goes, as we will see later. 
+
+Table 3
+Proportion of patients by results of thallium stress test
 
 ```{r thal_prepped, echo = FALSE}
 
@@ -382,7 +418,7 @@ kable(p,
 ```
 
 ### Relationship within the attributes (Multicollinearity)
-Another interesting thing is to see what variables are related to each other. This is important to understand the predictors and might need to be addressed. The chart below shows us the correlation values of the numerical variables of the patients. We are interested in big squares which means bigger correlations. 
+Another interesting thing is to see what variables are related to each other. This is important to understand the predictors and might need to be addressed. The chart below shows us the correlation values of the numerical variables of the patients. We are interested in big squares which means bigger correlations. Results are summarized on Figure 3.
 
 For example, looking at the patient's age we see a relatively strong correlation between the number of vessels colored by fluoroscopy and the patient's blood pressure. In layman's terms for the latter, we could say that older patients tend to have higher blood pressure.
 
@@ -392,6 +428,8 @@ The slope of the peak exercise ST segment and ST depression induced by exercise 
 
 Chest pain and exercise-induced pain (angina) are highly correlated. And as we will see they are very strong predictors of heart disease.
 
+Figure 3
+Relationship within numerical attributes
 
 ```{r colinearity, echo = FALSE}
 
@@ -529,10 +567,12 @@ In total, we performed three different ML models to predict the presence of hear
 
 3. Random Forest using cross-validation. The idea here is to go beyond a simple random forest and let the algorithm explore different tuning parameters and in a way help us pick the best model. Interestingly it didn't change much.
 
-The results are summarized in the table below. We see all three are close to 80% in accuracy so the immediate question is, is that good or bad? Certainly, the results could be improved potentially if we tried different algorithms but that is not the goal here. 
+The results are summarized in Table 4. We see all three are close to 80% in accuracy so the immediate question is, is that good or bad? Certainly, the results could be improved potentially if we tried different algorithms but that is not the goal here. 
 
 Considering that our dataset had 120 (44%) patients with heart disease and 150 (56%) without we see a very balanced dataset that was almost like flipping a coin. If we had said that all patients don't have heart disease we would be correct 56%. So these algorithms getting us to around 80% accuracy is a huge improvement. 
 
+Table 4
+Accuracy by Model
 
 ```{r accuracy, echo=FALSE}
 
@@ -560,8 +600,10 @@ kable(df_accuracy,
 
 ### Important attributes predicting heart disease
 
-One of the advantages of the Random Forest algorithm is that it ranks what variables are the most important in building all the trees. This is summarized here:
+One of the advantages of the Random Forest algorithm is that it ranks what variables are the most important in building all the trees. These results can be seen in Figure 4.
 
+Figure 4  
+Attribute ranking
 
 ```{r print_rf_features, echo = FALSE}
 
@@ -595,8 +637,10 @@ ggplot(importance_df, aes(reorder(feature, +N), N)) +
 
 ### Another approach to explain the model
 
-The previous results are great to get a sense of the importance of the variables. But the next question is how. For that, we used a very simple classification tree that allows us to see some of the rules behind the trees to determine the presence of heart disease.
+The previous results are great to get a sense of the importance of the variables. But the next question is how. For that, we used a very simple classification tree (Figure 6) that allows us to see some of the rules behind the trees to determine the presence of heart disease. 
 
+Figure 5  
+Attribute ranking
 
 ```{r rpart, echo = FALSE}
 
