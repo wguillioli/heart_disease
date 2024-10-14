@@ -7,24 +7,6 @@ output:
     fig_caption: yes
   html_document:
     df_print: paged
-header-includes:
-- \usepackage{caption}
-- \usepackage{booktabs}
-- \usepackage{makecell}
-- \usepackage{longtable}
-- \usepackage{array}
-- \usepackage{multirow}
-- \usepackage{wrapfig}
-- \usepackage{float}
-- \usepackage{colortbl}
-- \usepackage{pdflscape}
-- \usepackage{tabu}
-- \usepackage{threeparttable}
-- \usepackage{threeparttablex}
-- \usepackage[normalem]{ulem}
-- \usepackage{makecell}
-- \usepackage{xcolor}
-- \floatplacement{figure}{H}
 #output:
 #  pdf_document: default
 #  html_document: default
@@ -92,7 +74,7 @@ d <- read.table(dat_file_path)
 dim(d) #270 x 14 as expected
 
 column_names <- c("age",
-                  "sex",
+                  "gender",
                   "pain",
                   "blood",
                   "chol",
@@ -117,6 +99,25 @@ summary(d)
 
 ```
 
+**Table 1** \
+*Summary of patient's attributes*
+
+Attribute                                           | Summary
+:---------------------------------------------------|:---------------------------------------
+Patient's age                                       | Numeric, from 29 to 77 years 
+Patient's gender                                    | Binary, 68% males, 32% females
+Chest pain type                                     | Categorical, 4 possible values 
+Resting blood pressure                              | Numeric, from 94 to 200 
+Serum cholestorol in mg/dl                          | Numeric, from 126 to 564
+Fasting blood sugar                                 | Binary, indicating if blood sugar > 120 mg/dl
+Resting electrocardiographic results                | Categorical, 3 possible values
+Maximum heart rate (beats per minute)               | Numeric, from 71 to 202
+Exercise-induced chest pain (angina)                | Binary, indicating if exercise produces pain
+ST depression induced by exercise relative to rest  | Numeric, from 0 to 6.2 (most are zero)
+Slope of the peak exercise ST segment               | Categorical, 3 possible values
+Number of major vessels colored by flouroroscopy    | Categorical, 4 possible values
+Results of thallium stress test                     | Categorical, 3 possible values
+
 In total, there are 270 patients. Of those, 120 (44%) have heart disease and 150 (56%) do not have heart disease. Note that no missing values are present in the data. 
 
 ```{r eda_y, include = FALSE}
@@ -136,26 +137,7 @@ d <- d %>%
 
 ```
 
-The 13 available attributes of each patient are summarized in table 1. For more details see the competition page on [drivendata.org](https://www.drivendata.org/competitions/54/machine-learning-with-a-heart/page/109/).
-
-Table 1
-Summary of patient's attributes
-
-Attribute                                           | Summary
-:---------------------------------------------------|:---------------------------------------
-Patient's age                                       | Numeric, from 29 to 77 years 
-Patient's gender                                    | Binary, 68% males, 32% females
-Chest pain type                                     | Categorical, 4 possible values 
-Resting blood pressure                              | Numeric, from 94 to 200 
-Serum cholestorol in mg/dl                          | Numeric, from 126 to 564
-Fasting blood sugar                                 | Binary, indicating if blood sugar > 120 mg/dl
-Resting electrocardiographic results                | Categorical, 3 possible values
-Maximum heart rate (beats per minute)               | Numeric, from 71 to 202
-Exercise-induced chest pain (angina)                | Binary, indicating if exercise produces pain
-ST depression induced by exercise relative to rest  | Numeric, from 0 to 6.2 (most are zero)
-Slope of the peak exercise ST segment               | Categorical, 3 possible values
-Number of major vessels colored by flouroroscopy    | Categorical, 4 possible values
-Results of thallium stress test                     | Categorical, 3 possible values
+The 13 available attributes of each patient are summarized in table 1. For more details see the competition page on [drivendata.org](https://www.drivendata.org/competitions/54/machine-learning-with-a-heart/page/109/).   
 
 Since we have a manageable number of variables for each patient, a detailed univariate exploratory analysis is performed to understand the details of the variable and more importantly to understand the potential prediction power of the absence or presence of heart disease.
 
@@ -184,17 +166,17 @@ d %>%
             p25 = quantile(age, p = 0.25),
             p75 = quantile(age, p = 0.75)) 
 
-#$ sex     <dbl> 1, 0, 1, 1, 0, 1, 1, 1, 1, 0, 1, 1, 1, 1, 0, 0, 1, 1, 1, 1, …
+#$ gender     <dbl> 1, 0, 1, 1, 0, 1, 1, 1, 1, 0, 1, 1, 1, 1, 0, 0, 1, 1, 1, 1, …
 # 0: female, 1: male
 d <- d %>%
-  mutate(sex_fct = as.factor(recode(d$sex, '0' = "F", '1' = "M"))) 
+  mutate(gender_fct = as.factor(recode(d$gender, '0' = "F", '1' = "M"))) 
 
 d %>%
-  group_by(sex_fct) %>%
+  group_by(gender_fct) %>%
   tally() %>%
   mutate(p=n/sum(n)) #68%M, 32%F
 
-(t <- table(d$sex_fct, d$disease_fct))
+(t <- table(d$gender_fct, d$disease_fct))
 round(prop.table(t, margin = 2), 2) #higher % of males get Y, so has power
 
 #$ pain    <dbl> 4, 3, 2, 4, 2, 4, 3, 4, 4, 4, 4, 4, 3, 1, 4, 4, 4, 4, 1, 1, 4 …
@@ -324,8 +306,8 @@ As an example let's look at one example of each variable here.
 ### Maximum heart rate achieved (beats per minute)
 The number of beats per minute per patient ranges from 71 to 202 with a median of 153. The data is mostly normally distributed, as seen in figure 1.
 
-Figure 1
-Distribution of Patient's maximum heart rate achieved (beats per minute)
+**Figure 1**\
+*Distribution of Patient's maximum heart rate achieved (beats per minute)*
 
 ```{r maxhr_hist, echo = FALSE}
 
@@ -352,9 +334,9 @@ d %>%
 
 ```
 
-Figure 2
-Patient's maximum heart rate achieved (beats per minute) by presence of heart disease
-
+\newpage
+**Figure 2**\
+*Patient's maximum heart rate achieved (beats per minute) by presence of heart disease*
 
 ```{r maxhr_boxplot, echo = FALSE}
 
@@ -376,8 +358,8 @@ Test that measures the blood flow to the heart, with possible values normal, fix
 
 At first, when looking at the data we observe that the counts for 6 (fixed) are low. We need to address this to help the ML algorithms we will use later. To do so, since the proportion of the presence of disease is similar to 3 (normal) we bin them together. See Table 2.
 
-Table 2
-Number of patients by results of thallium stress test
+**Table 2**\
+*Number of patients by results of thallium stress test*
 
 ```{r thal_raw, echo = FALSE}
 
@@ -397,8 +379,13 @@ kable(t,
 
 After binning them together, we compute the proportion of patients with and without disease as it relates to the results of the thallium test. As we can see the proportions are inverted indicating that 80% of patients that have a heart disease have reversable results (Table 3). This is good news as far as the power of prediction goes, as we will see later. 
 
-Table 3
-Proportion of patients by results of thallium stress test
+### Relationship within the attributes (Multicollinearity)
+Another interesting thing is to see what variables are related to each other. This is important to understand the predictors and might need to be addressed. The chart below shows us the correlation values of the numerical variables of the patients. We are interested in big squares which means bigger correlations. Results are summarized on Figure 3.
+
+For example, looking at the patient's age we see a relatively strong correlation between the number of vessels colored by fluoroscopy and the patient's blood pressure. In layman's terms for the latter, we could say that older patients tend to have higher blood pressure.
+
+**Table 3**\
+*Proportion of patients by results of thallium stress test*
 
 ```{r thal_prepped, echo = FALSE}
 
@@ -417,19 +404,14 @@ kable(p,
 
 ```
 
-### Relationship within the attributes (Multicollinearity)
-Another interesting thing is to see what variables are related to each other. This is important to understand the predictors and might need to be addressed. The chart below shows us the correlation values of the numerical variables of the patients. We are interested in big squares which means bigger correlations. Results are summarized on Figure 3.
-
-For example, looking at the patient's age we see a relatively strong correlation between the number of vessels colored by fluoroscopy and the patient's blood pressure. In layman's terms for the latter, we could say that older patients tend to have higher blood pressure.
-
 In addition, we are interested in negative correlations (the red squares). For example, we can see that older patients tend to have lower maximum heart rates - which makes sense.
 
 The slope of the peak exercise ST segment and ST depression induced by exercise relative to rest have a very high correlation of 0.6. The variables seem to measure similar information so one could be removed but will leave it for now.
 
 Chest pain and exercise-induced pain (angina) are highly correlated. And as we will see they are very strong predictors of heart disease.
 
-Figure 3
-Relationship within numerical attributes
+**Figure 3**\
+*Relationship within numerical attributes*
 
 ```{r colinearity, echo = FALSE}
 
@@ -456,7 +438,7 @@ Fortunately, after a careful univariate analysis one can see that several variab
 
 * **Maximum heart rate (beats per minute)**: see previous section for more details.
 
-* **Patient's sex**: interesting to see that 55% of women have heart disease vs 83% of men. 
+* **Patient's gender**: interesting to see that 55% of women have heart disease vs 83% of men. 
 
 * **Exercise-induced chest pain (angina)**: 55% of patients with heart disease report angina while only 15% of those without heart disease do. 
 
@@ -468,14 +450,13 @@ Alternatively, there are a couple of unexpected results worth mentioning
 
 Now, let's compare our manual work with the automated work of ML algorithms and see what results are obtained.
 
-
 ```{r test_train_split, include = FALSE}
 
 m <- d # create a copy of the dataset for modeling
 
 # remove vars that were modified 
 m <- m %>%
-  select(-sex, -pain, -sugar, -electro, -angina, -vessels, -slope, -chol,
+  select(-gender, -pain, -sugar, -electro, -angina, -vessels, -slope, -chol,
          -thal)
 
 # split into training and testing
@@ -571,8 +552,8 @@ The results are summarized in Table 4. We see all three are close to 80% in accu
 
 Considering that our dataset had 120 (44%) patients with heart disease and 150 (56%) without we see a very balanced dataset that was almost like flipping a coin. If we had said that all patients don't have heart disease we would be correct 56%. So these algorithms getting us to around 80% accuracy is a huge improvement. 
 
-Table 4
-Accuracy by Model
+**Table 4**\
+*Accuracy by Model*
 
 ```{r accuracy, echo=FALSE}
 
@@ -602,8 +583,8 @@ kable(df_accuracy,
 
 One of the advantages of the Random Forest algorithm is that it ranks what variables are the most important in building all the trees. These results can be seen in Figure 4.
 
-Figure 4  
-Attribute ranking
+**Figure 4**\
+*Attribute ranking*
 
 ```{r print_rf_features, echo = FALSE}
 
@@ -615,7 +596,7 @@ importance_df$feature <- c ("Patient's age",
                             "Resting blood pressure",
                             "Maximum heart rate (beats per minute)",
                             "ST depression induced by exercise relative to rest",
-                            "Patient's sex",
+                            "Patient's gender",
                             "Chest pain type",
                             "Fasting blood sugar",
                             "Resting electrocardiographic results",
@@ -636,17 +617,32 @@ ggplot(importance_df, aes(reorder(feature, +N), N)) +
 
 
 ### Another approach to explain the model
-
 The previous results are great to get a sense of the importance of the variables. But the next question is how. For that, we used a very simple classification tree (Figure 6) that allows us to see some of the rules behind the trees to determine the presence of heart disease. 
 
-Figure 5  
-Attribute ranking
+For example, let's consider the two scenarios where most of the patients are classified.
+
+1. **Patients with heart disease**. If we follow the branch to the right we see first that patients with a reversible result of the thallium stress test will have a 90% of presence of disease. 26% of the patients fit this criteria. 
+
+2. **Patients without heart disease**. If we follow the branch to the left we see that if patients had a Slope of the peak exercise ST segment under 2 and a normal or fixed result on the Results of the thallium stress test they only have a 9% probability of heart disease. 36% of patients fit these criteria.
+
+
+## Conclusions
+1. XXX add sobre modeling  
+
+2. Based on this simple dataset it seems that understanding what can cause the presence of heart disease is not that complex and there are simple measures we can take
+
+3. Algorithms only provide partial solutions and we should not take them as the ultimate truth. For example, we know that many other variables are good potential predictors but the tree did not show them for example.
+
+4. More data would be nice to explore different or complementary results. For example, it is a bit strange that Resting blood pressure and Serum cholesterol in mg/dl did not appear as strong predictors. 
+
+**Figure 5**\
+*Top variables in Classification Tree*
 
 ```{r rpart, echo = FALSE}
 
 # friendlier column names for better display on tree
 friendly_column_names <- c("age", "blood_pressure", "maxhr", "oldpeak",
-                           "disease", "sex", "pain", "blood_sugar",
+                           "disease", "gender", "pain", "blood_sugar",
                            "electro", "angina", "num_vessels", "slope",
                            "thal", "cholesterol_log", "oldpeak_flag")
 
@@ -666,27 +662,10 @@ rpart.plot(disease_rpart_model,
 
 ```
 
-For example, let's consider the two scenarios where most of the patients are classified.
-
-1. **Patients with heart disease**. If we follow the branch to the right we see first that patients with a reversible result of the thallium stress test will have a 90% of presence of disease. 26% of the patients fit this criteria. 
-
-2. **Patients without heart disease**. If we follow the branch to the left we see that if patients had a Slope of the peak exercise ST segment under 2 and a normal or fixed result on the Results of the thallium stress test they only have a 9% probability of heart disease. 36% of patients fit these criteria.
-
-
-## Conclusions
-1. Based on this simple dataset it seems that understanding what can cause the presence of heart disease is not that complex and there are simple measures we can take
-
-2. Algorithms only provide partial solutions and we should not take them as the ultimate truth. For example, we know that many other variables are good potential predictors but the tree did not show them for example.
-
-3. More data would be nice to explore different or complementary results. For example, it is a bit strange that Resting blood pressure and Serum cholesterol in mg/dl did not appear as strong predictors. 
 
 
 ## References
 
-DrivenData. (n.d.). Warm-up: Machine learning with a heart. http://www.drivendata.org/competitions/54/machine-learning-with-a-heart 
+1. DrivenData. (n.d.). Warm-up: Machine learning with a heart.\ http://www.drivendata.org/competitions/54/machine-learning-with-a-heart 
 
-Statlog (heart). UCI Machine Learning Repository. (n.d.). https://doi.org/10.24432/C57303 
-
-Cardiovascular diseases - global facts and figures. World Heart Federation. (2023, May 26). https://world-heart-federation.org/resource/cardiovascular-diseases-cvds-global-facts-figures/ 
-
-Barter, R. (2020, April 14). Tidymodels: Tidy Machine Learning in R. Rebecca Barter. https://rebeccabarter.com/blog/2020-03-25_machine_learning 
+3. Cardiovascular diseases - global facts and figures. World Heart Federation. (2023, May 26).\ https://world-heart-federation.org/resource/cardiovascular-diseases-cvds-global-facts-figures/ 
